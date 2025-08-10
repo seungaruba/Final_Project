@@ -1,0 +1,430 @@
+---
+title: "R-Masterclass Final Project"
+format: dashboard
+---
+
+::: {.hidden}
+```{r}
+# Load Packages
+if(!require(pacman)) install.packages("pacman")
+pacman::p_load(tidyverse,
+               here,
+               gapminder,
+               bslib,
+               bsicons,
+               shiny,
+               rnaturalearth,
+               plotly,
+               countrycode,
+               htmltools,
+               reactable)
+```
+
+```{r}
+# Import datasets for analysis
+africa_pop <- read_csv(here("data/africa_pop.csv"))
+newly_infected <- read_csv(here("data/newly_hiv_infected_Africa.csv"))
+pop_new_data <- read_csv(here("data/pop_new_pos.csv"))
+```
+
+```{r}
+# African Countries Population data for 2009
+hiv_data_1 <- africa_pop %>% 
+  mutate(across(.cols = -country,
+                .fns = ~ case_when(str_detect(tolower(as.character(.)), 'k$') ~
+                                     as.numeric(str_remove(tolower(as.character(.)), 'k')) * 1000,
+                                   str_detect(tolower(as.character(.)), 'm$') ~ 
+                                     as.numeric(str_remove(tolower(as.character(.)), 'm')) * 1000000,
+                                   TRUE ~ as.numeric(.)
+                                   )
+                )
+         ) %>% 
+        pivot_longer(cols = -country,
+                      names_to = 'year',
+                      values_to = 'population') %>% 
+         mutate(year = as.numeric(str_replace(year, 'X', ''))) %>% 
+         filter(year == 2009)
+```
+
+```{r}
+# Get the country code into the hiv_data_1
+hiv_data_1 <- hiv_data_1 %>% 
+  mutate(country_code = countrycode(country,
+                                    "country.name",
+                                     "iso3c"))
+```
+
+```{r}
+# African Countries New HIV Infections data in 2009
+newly_infected_1 <- newly_infected %>% 
+  mutate(across(.cols = -country,
+                .fns = ~ case_when(str_detect(tolower(as.character(.)), 'k$') ~
+                                     as.numeric(str_remove(tolower(as.character(.)), 'k')) * 1000,
+                                   TRUE ~ as.numeric(.)
+                                   )
+                )
+         ) %>% 
+         pivot_longer(cols = -country,
+                      names_to = 'year',
+                      values_to = 'newly infected') %>% 
+         mutate(year = as.numeric(str_replace(year, 'X', ''))) %>% 
+         filter(year == 2009)
+```
+
+
+```{r}
+# Get the country code into the newly infected persons data
+
+newly_infected_1 <- newly_infected_1 %>% 
+  mutate(country_code = countrycode(country,
+                                    "country.name",
+                                     "iso3c"))
+```
+
+
+```{r}
+#Join hiv_data_1 with newly_infected_1
+result <- left_join(newly_infected_1, hiv_data_1, by = c("country_code"))
+```
+
+```{r}
+# Pull data from all tables into one table called combined data table
+
+combined_data <- result %>%
+  select(country.x, country_code, population, `newly infected`)
+```
+
+```{r}
+# Change column names and a calculated column 
+
+combined_data <- combined_data %>%
+  rename(
+    Country = country.x,
+    Code = country_code,
+    Population = population,
+    Newly_Infected = `newly infected`
+  ) %>%
+  mutate(
+    Cumm_Incidence = (Newly_Infected / Population) * 1000
+  )
+#sum(combined_data$`newly infected`, na.rm = TRUE)
+```
+
+```{r}
+# Code chunk for the Analysis page
+
+# Country with highest cumm. incidence of HIV and value
+Highest_cumm_inc <- combined_data %>% 
+  arrange(-Cumm_Incidence) %>% 
+  head(1) %>% 
+  pull(Country)
+
+Highest_cumm_inc_value <-
+combined_data %>% 
+  arrange(-Cumm_Incidence) %>% 
+  head(1) %>% 
+  pull(Cumm_Incidence) %>% 
+  round(2)
+
+# Country with lowest cumm. incidence of HIV and value
+lowest_cumm_inc <- combined_data %>% 
+  arrange(Cumm_Incidence) %>% 
+  head(1) %>% 
+  pull(Country)
+
+lowest_cumm_inc_value <-
+combined_data %>% 
+  arrange(Cumm_Incidence) %>% 
+  head(1) %>% 
+  pull(Cumm_Incidence) %>% 
+  round(2)
+
+Highest_cumm_inc_value <-
+combined_data %>% 
+  arrange(-Cumm_Incidence) %>% 
+  head(1) %>% 
+  pull(Cumm_Incidence) %>% 
+  round(2)
+
+```
+
+```{r}
+# Code chunk for the Indicators Page
+pop_of_africa <- 
+  sum(combined_data$Population)
+pop_of_africa
+
+most_pop_africa_country_value <- combined_data %>% 
+  arrange(-Population) %>% 
+  head(1) %>% 
+  pull(Population)
+most_pop_africa_country_value
+
+most_pop_africa_country <- combined_data %>% 
+  arrange(-Population) %>% 
+  head(1) %>% 
+  pull(Country)
+most_pop_africa_country
+
+avg_pop_of_africa <- 
+  round(mean(combined_data$Population, na.rm = TRUE), 1)
+avg_pop_of_africa
+
+avg_new_infect_africa <- 
+  round(mean(combined_data$Newly_Infected, na.rm = TRUE), 1)
+avg_new_infect_africa
+  
+newly_infected_africa <-
+  sum(combined_data$Newly_Infected)
+newly_infected_africa
+
+africa_country_highest_new_infect <- combined_data %>% 
+  arrange(-Newly_Infected) %>% 
+  head(1) %>% 
+  pull(Newly_Infected)
+africa_country_highest_new_infect
+
+africa_country_highest_new_infect_value <- combined_data %>% 
+  arrange(-Newly_Infected) %>% 
+  head(1) %>% 
+  pull(Country)
+africa_country_highest_new_infect_value
+
+cumm_incidence_africa <-
+  (newly_infected_africa/pop_of_africa)*1000  
+round(cumm_incidence_africa, 2)
+```
+
+```{r}
+# Code Chunk for the trends page
+pop_10yr_trend <-
+  ggplot(data = pop_new_data,
+         mapping = aes(x = Year,
+                       y = Population))+
+  geom_line(color = "#1742a6",
+            size = 1.5,
+            linetype = "twodash")+
+  geom_point(size = 3,
+             color = "black")
+pop_10yr_trend
+
+pop_10yr_new_pos <-
+  ggplot(data = pop_new_data,
+         mapping = aes(x = Year,
+                       y = Newly_Infected))+
+  geom_line(color = "#1742a6",
+            size = 1.5,
+            linetype = "twodash")+
+  geom_point(size = 3,
+             color = "black")
+pop_10yr_new_pos
+```
+:::
+# Indicators
+
+## Row 1{height=20%}
+
+```{r}
+value_box(
+  title = " ",
+  value = "Indicators at a Glance",
+  showcase = bsicons::bs_icon("bar-chart-steps"),
+  theme = value_box_theme(bg = "#141414")
+)
+```
+
+## Row 2{height=40%}
+
+```{r}
+value_box(
+  title = "Africa Population(2009)",
+  value = pop_of_africa,
+  showcase = bsicons::bs_icon("diagram-3-fill"),
+  theme = value_box_theme(bg = "#1742a6")
+)
+```
+
+```{r}
+value_box(
+  title = "Most Populous Country(2009)",
+  value = most_pop_africa_country,
+  showcase = bsicons::bs_icon("bookmark-star"),
+  theme = value_box_theme(bg = "#7a9ff5"),
+  p(most_pop_africa_country_value)
+)
+```
+
+
+```{r}
+value_box(
+  title = "Africa's Average Population(2009)",
+  value = avg_pop_of_africa,
+  showcase = bsicons::bs_icon("diagram-3-fill"),
+  theme = value_box_theme(bg = "#1742a6")
+)
+```
+
+## Row 3{height=40%}
+
+
+```{r}
+
+value_box(
+  title = "New HIV infections(2009)",
+  value = newly_infected_africa,
+  showcase = bsicons::bs_icon("virus2"),
+  theme = value_box_theme(bg = "#1742a6")
+)
+```
+
+```{r}
+
+value_box(
+  title = "Country with Highest New Infection(2009)",
+  value = africa_country_highest_new_infect_value,
+  showcase = bsicons::bs_icon("bookmarks"),
+  theme = value_box_theme(bg = "#7a9ff5"),
+  p(africa_country_highest_new_infect)
+)
+```
+
+
+```{r}
+
+value_box(
+  title = "Average HIV Infection in Africa(2009)",
+  value = avg_new_infect_africa,
+  showcase = bsicons::bs_icon("virus2"),
+  theme = value_box_theme(bg = "#1742a6")
+)
+```
+
+# Analysis
+
+## Row 1{height=25%}
+
+```{r}
+
+value_box(
+  title = "Africa Population(2009)",
+  value = pop_of_africa,
+  showcase = bsicons::bs_icon("diagram-3-fill"),
+  theme = value_box_theme(bg = "#1742a6")
+)
+```
+
+```{r}
+value_box(
+  title = "Newly infected(2009)",
+  value = newly_infected_africa,
+  showcase = bsicons::bs_icon("virus"),
+  theme = value_box_theme(bg = "#7a9ff5")
+)
+```
+
+```{r}
+value_box(
+  title = "Cumm. Incidence",
+  value = round(cumm_incidence_africa, 2),
+  showcase = bsicons::bs_icon("exclamation-triangle"),
+  theme = value_box_theme(bg = "#1742a6")
+)
+```
+
+## Row 2{height=75%}
+
+### column {width=70%}
+
+```{r title = "Map of African Countries with the highest HIV incidence "}
+  africa <- ne_countries(continent = "Africa")
+#ggplot(africa)+
+#  geom_sf()+
+#  theme_void()
+
+africa_map <- left_join(africa, combined_data,
+          by = c("adm0_iso" = "Code")) %>% 
+  mutate(tooltip_label = paste(Country,
+                               round(Cumm_Incidence, 1),
+                               sep = ": ")) %>% 
+  ggplot()+
+  geom_sf(aes(fill = Cumm_Incidence, text = tooltip_label))+
+  theme_void()+
+  theme(legend.position = "none")
+
+africa_map_ggplotly <- ggplotly(africa_map, tooltip = "text")
+africa_map_ggplotly
+
+#setdiff(africa$adm0_iso, combined_data$Code)
+```
+
+
+### column {width=30%}
+
+```{r title = "Top 10 Countries by Cumm. Incidence"}
+combined_data %>% 
+  arrange(desc(Cumm_Incidence)) %>% 
+  head(10) %>% 
+  ggplot(aes(y = reorder(Country,Cumm_Incidence),
+             x = Cumm_Incidence,
+             fill = Cumm_Incidence))+
+  geom_col()+
+  theme(legend.position = "none")+
+geom_text(aes(label = round(Cumm_Incidence, 1)),
+          color = "black")
+```
+
+# Trends 
+
+## Row 1{height=25%}
+
+```{r}
+value_box(
+  title = " ",
+  value = "Population/New Infections Trends",
+  showcase = bsicons::bs_icon("graph-up-arrow"),
+  theme = value_box_theme(bg = "#1742a6")
+  ##7a9ff5
+)
+```
+
+
+## Row 2{height=75%}
+
+### column{width=50%}
+```{r}
+pop_10yr_trend
+```
+
+### column{width=50%}
+```{r}
+pop_10yr_new_pos
+```
+
+# Download Data
+
+The data used for the dashboard can be downloaded here for further analysis
+
+```{r}
+library(htmltools)
+
+htmltools::browsable(
+  tagList(
+    reactable(
+      combined_data,
+      elementId = "HIV Incidence-table",
+      searchable = TRUE, filterable = TRUE),
+    
+    tags$button("Download as CSV", onclick = "Reactable.downloadDataCSV('HIV Incidence-table')")
+  )
+  )
+```
+
+# About
+The dashboard sought to explore the population of the countries that actively report HIV cases in Africa, the newly identified cases in 2009 and the cumulative incidence of HIV in the continent.
+
+Findings from the exploration showed that as the population in the continent increased the number of new HIV cases identified reduced. This signifies that one or a combination of the following is happening:
+1 - Improved health systems
+2 - Improved HIV prevention and control
+3 - A sign of epidemic control
+
+Eventhough one or all of the above is happening in the continent, it important to know that active steps were taken to see the gains that are currently being witnessed. Sustainable measures should be put in place to ensure that the gains are sustained.
