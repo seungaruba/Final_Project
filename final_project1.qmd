@@ -420,9 +420,9 @@ htmltools::browsable(
 ```
 
 # About
-The dashboard sought to explore the population of the countries that actively report HIV cases in Africa, the newly identified cases in 2009 and the cumulative incidence of HIV in the continent.
+The dashboard sought to explore the population of the countries that actively report HIV cases in Africa, the newly identified cases in 2009 and the cumulative incidence of HIV in the continent.It also sought to show a 10-year trend of population and new HIV infections in Africa.
 
-Findings from the exploration showed that as the population in the continent increased the number of new HIV cases identified reduced. This signifies that one or a combination of the following is happening:
+Findings from the exploration showed that the cummulative incidence of HIV in Afica is at 2.63. Also, data shows that as the population in the continent increased the number of new HIV cases identified reduced. This signifies that one or a combination of the following is happening:
 1 - Improved health systems
 2 - Improved HIV prevention and control
 3 - A sign of epidemic control
